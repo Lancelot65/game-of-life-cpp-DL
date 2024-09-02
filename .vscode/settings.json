@@ -56,5 +56,8 @@
         "iomanip": "cpp",
         "sstream": "cpp",
         "codecvt": "cpp"
-    }
+    },
+    "cSpell.words": [
+        "kbhit"
+    ]
 }
