@@ -2,7 +2,7 @@
 #include <deque>
 #include <chrono>
 #include <vector>
-#include <numeric>
+#include <algorithm>
 #include <locale>
 #include <codecvt>
 #include <conio.h>
@@ -12,9 +12,11 @@ class Table
 private:
     std::deque<std::deque<bool>> table;
     size_t row, column;
+    std::pair<size_t, size_t> max_size;
+    std::pair<size_t, size_t> init_pos = std::make_pair(0, 0);
 
 public:
-    Table(size_t row_, size_t column_) : table(row_, std::deque<bool>(column_, false)), row(row_), column(column_) {}
+    Table(size_t row_, size_t column_, std::pair<size_t, size_t> max_size_) : table(row_, std::deque<bool>(column_, false)), row(row_), column(column_), max_size(max_size_) {}
 
     bool in_table(int row_, int column_) const
     {
@@ -33,7 +35,7 @@ public:
     }
     void add_right()
     {
-        for (auto &i : this->table)
+        for (std::deque<bool> &i : this->table)
         {
             i.push_back(0);
         }
@@ -41,22 +43,22 @@ public:
     }
     void add_left()
     {
-        for (auto &i : this->table)
+        for (std::deque<bool> &i : this->table)
         {
             i.push_front(0);
         }
         this->column++;
     }
 
-    void pixel_in_life(size_t row_, size_t column_, std::deque<std::deque<bool>> &copie)
+    void pixel_in_life(size_t row_, size_t column_, std::deque<std::deque<bool>> &copy)
     {
         int counter = 0;
-        const std::vector<std::pair<size_t, size_t>> liste{{-1, 0}, {1, 0}, {0, -1}, {0, 1}, {-1, -1}, {-1, 1}, {1, 1}, {1, -1}};
-        for (auto &[dx, dy] : liste)
+        const std::vector<std::pair<int, int>> list{{-1, 0}, {1, 0}, {0, -1}, {0, 1}, {-1, -1}, {-1, 1}, {1, 1}, {1, -1}};
+        for (auto &[dx, dy] : list)
         {
             if (in_table(row_ + dx, column_ + dy))
             {
-                counter += copie[row_ + dx][column_ + dy];
+                counter += copy[row_ + dx][column_ + dy];
             }
         }
 
@@ -72,22 +74,24 @@ public:
 
     void check_limit()
     {
-        if (std::accumulate(this->table.front().begin(), this->table.front().end(), 0) != 0)
+        if (any_of(this->table.front().begin(), this->table.front().end(), [](bool v)
+                   { return v; }))
         {
             this->add_up();
         }
-        if (std::accumulate(this->table.back().begin(), this->table.back().end(), 0) != 0)
+        if (any_of(this->table.back().begin(), this->table.back().end(), [](bool v)
+                   { return v; }))
         {
             this->add_down();
         }
-        for (auto &i : this->table)
+        for (std::deque<bool> &i : this->table)
         {
-            if (i.front() != 0)
+            if (i.front())
             {
                 this->add_left();
                 break;
             }
-            if (i.back() != 0)
+            if (i.back())
             {
                 this->add_right();
                 break;
@@ -98,12 +102,12 @@ public:
     void update()
     {
         this->check_limit();
-        std::deque<std::deque<bool>> copie = this->table;
+        std::deque<std::deque<bool>> copy = this->table;
         for (size_t i = 0; i < this->table.size(); i++)
         {
             for (size_t y = 0; y < this->table[i].size(); y++)
             {
-                this->pixel_in_life(i, y, copie);
+                this->pixel_in_life(i, y, copy);
             }
         }
     }
@@ -121,23 +125,28 @@ public:
 
     void print_table()
     {
-        std::string output;
+
+        const size_t size = (this->row) * (this->column + 1) + 1;
+        char buffer[size];
+        size_t index = 0;
         for (size_t i = 0; i < this->table.size(); i++)
         {
             for (size_t y = 0; y < this->table[i].size(); y++)
             {
-                output += (this->table[i][y] ? '#' : '.');
+                buffer[index] = (this->table[i][y] ? '#' : '.');
+                index++;
             }
-            output += '\n';
+            buffer[index] = '\n';
+            index++;
         }
-        output += '\n';
-        std::cout << output << std::endl;
+        buffer[index] += '\n';
+        fwrite(buffer, size, 1, stderr);
     }
 };
 
 int main(int argc, char const *argv[])
 {
-    Table test(30, 50);
+    Table test(30, 30, std::make_pair(20, 20));
     test.set_value(15, 20);
     test.set_value(16, 20);
     test.set_value(17, 20);
@@ -145,12 +154,11 @@ int main(int argc, char const *argv[])
     test.set_value(17, 21);
     for (size_t i = 0; i < 1000; i++)
     {
-        system("cls");
+        std::system("cls");
         test.print_table();
         test.update();
     }
 
-    // Calculer le temps écoulé
     return 0;
 }
 
