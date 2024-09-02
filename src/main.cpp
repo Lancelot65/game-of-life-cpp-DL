@@ -1,173 +1,144 @@
 #include <iostream>
-#include <deque>
 #include <chrono>
 #include <vector>
-#include <algorithm>
+#include <thread>
 #include <conio.h>
+#include <algorithm>
+#include <cstdlib>
+
+struct Position
+{
+    int x;
+    int y;
+
+    Position(int x, int y) : x(x), y(y) {}
+
+    bool operator==(const Position &other) const
+    {
+        return this->x == other.x && this->y == other.y;
+    }
+};
 
 class Table
 {
 private:
-    std::deque<std::deque<bool>> table;
-    size_t row, column;
-    std::pair<size_t, size_t> max_size;
-    std::pair<size_t, size_t> init_pos = std::make_pair(0, 0);
+    std::vector<Position> table;
+    size_t width, height;
+    Position init_pos;
+
+    bool position_exists(const Position &pos) const
+    {
+        return std::find(table.begin(), table.end(), pos) != table.end();
+    }
+
+    // Add a position to the table if it doesn't already exist
+    void add_position(const Position &pos)
+    {
+        if (!position_exists(pos))
+        {
+            table.push_back(pos);
+        }
+    }
+
+    void remove_position(const Position &pos)
+    {
+        auto it = std::remove(table.begin(), table.end(), pos);
+        if (it != table.end())
+        {
+            table.erase(it, table.end());
+        }
+    }
 
 public:
-    Table(size_t row_, size_t column_, std::pair<size_t, size_t> max_size_) : table(row_, std::deque<bool>(column_, false)), row(row_), column(column_), max_size(max_size_) {}
+    Table(size_t width = 40, size_t height = 40) : width(width), height(height), init_pos(0, 0) {}
 
-    bool in_table(int row_, int column_) const
+    void set_value(const Position &position)
     {
-        return row_ >= 0 && row_ < int(this->row) && column_ >= 0 && column_ < int(this->column);
-    }
-
-    void add_up()
-    {
-        this->table.push_front(std::deque<bool>(column, false));
-        this->row++;
-        this->init_pos.first++;
-    }
-    void add_down()
-    {
-        this->table.push_back(std::deque<bool>(column, false));
-        this->row++;
-    }
-    void add_right()
-    {
-        for (std::deque<bool> &i : this->table)
-        {
-            i.push_back(0);
-        }
-        this->column++;
-    }
-    void add_left()
-    {
-        for (std::deque<bool> &i : this->table)
-        {
-            i.push_front(0);
-        }
-        this->column++;
-        this->init_pos.second++;
+        add_position(position);
     }
 
-    void pixel_in_life(size_t row_, size_t column_, std::deque<std::deque<bool>> &copy)
+    void pixel_in_life(const Position &position, bool already_exist, const std::vector<Position> &old_table)
     {
+        const std::vector<std::pair<int, int>> neighbors{{-1, 0}, {1, 0}, {0, -1}, {0, 1}, {-1, -1}, {-1, 1}, {1, 1}, {1, -1}};
         int counter = 0;
-        const std::vector<std::pair<int, int>> list{{-1, 0}, {1, 0}, {0, -1}, {0, 1}, {-1, -1}, {-1, 1}, {1, 1}, {1, -1}};
-        for (auto &[dx, dy] : list)
+
+        for (const auto &position_neighbor : neighbors)
         {
-            if (in_table(row_ + dx, column_ + dy))
+            Position temp(position.x + position_neighbor.first, position.y + position_neighbor.second);
+            if (std::find(old_table.begin(), old_table.end(), temp) != old_table.end())
             {
-                counter += copy[row_ + dx][column_ + dy];
+                counter++;
             }
         }
 
-        if (counter == 3)
+        if (counter == 3 && !already_exist)
         {
-            this->table[row_][column_] = true;
+            add_position(position);
         }
-        else if (counter != 2)
+        else if ((counter < 2 || counter > 3) && already_exist)
         {
-            this->table[row_][column_] = false;
-        }
-    }
-
-    void check_limit()
-    {
-        if (any_of(this->table.front().begin(), this->table.front().end(), [](bool v)
-                   { return v; }))
-        {
-            this->add_up();
-        }
-        if (any_of(this->table.back().begin(), this->table.back().end(), [](bool v)
-                   { return v; }))
-        {
-            this->add_down();
-        }
-        for (std::deque<bool> &i : this->table)
-        {
-            if (i.front())
-            {
-                this->add_left();
-                break;
-            }
-            if (i.back())
-            {
-                this->add_right();
-                break;
-            }
+            remove_position(position);
         }
     }
 
     void update()
     {
-        this->check_limit();
-        std::deque<std::deque<bool>> copy = this->table;
-        for (size_t i = 0; i < this->table.size(); i++)
+        std::vector<Position> old_table = this->table;
+
+        for (const auto &position : old_table)
         {
-            for (size_t y = 0; y < this->table[i].size(); y++)
+            pixel_in_life(position, true, old_table);
+        }
+
+        for (const auto &position : old_table)
+        {
+            const std::vector<std::pair<int, int>> neighbors{{-1, 0}, {1, 0}, {0, -1}, {0, 1}, {-1, -1}, {-1, 1}, {1, 1}, {1, -1}};
+            for (const auto &position_neighbor : neighbors)
             {
-                this->pixel_in_life(i, y, copy);
+                Position neighbor(position.x + position_neighbor.first, position.y + position_neighbor.second);
+                if (!position_exists(neighbor))
+                {
+                    pixel_in_life(neighbor, false, old_table);
+                }
             }
         }
     }
 
-    void change_pos(int change, bool is_row = true)
+    void print_table() const
     {
-        if (is_row)
-        {
-            // Change row position
-            int new_pos = static_cast<int>(this->init_pos.first) + change;
-            if (new_pos >= 0 && new_pos + this->max_size.first < this->table.size())
-            {
-                this->init_pos.first = static_cast<size_t>(new_pos);
-            }
-        }
-        else
-        {
-            // Change column position
-            int new_pos = static_cast<int>(this->init_pos.second) + change;
-            if (new_pos >= 0 && new_pos + this->max_size.second < this->table[0].size())
-            {
-                this->init_pos.second = static_cast<size_t>(new_pos);
-            }
-        }
-    }
+        std::system("cls");
+        std::string output;
+        int start_y = this->init_pos.y;
+        int end_y = this->height + this->init_pos.y;
+        int start_x = this->init_pos.x;
+        int end_x = this->width + this->init_pos.x;
 
-    void set_value(size_t row_, size_t column_)
-    {
-        if (this->in_table(row_, column_))
+        for (int y = start_y; y < end_y; y++)
         {
-            this->table[row_][column_] = true;
-        }
-    }
-
-    void print_table()
-    {
-        const size_t size = (this->max_size.first) * (this->max_size.second + 1) + 1;
-        char buffer[size];
-        size_t index = 0;
-        for (size_t i = this->init_pos.first; i < this->max_size.first + this->init_pos.first; i++)
-        {
-            for (size_t y = this->init_pos.second; y < this->max_size.second + this->init_pos.second; y++)
+            for (int x = start_x; x < end_x; x++)
             {
-                buffer[index] = (this->table[i][y] ? '#' : '.');
-                index++;
+                Position temp(x, y);
+                if (position_exists(temp))
+                {
+                    output += '#';
+                }
+                else
+                {
+                    output += ' ';
+                }
             }
-            buffer[index] = '\n';
-            index++;
+            output += '\n';
         }
-        fwrite(buffer, size, 1, stderr);
-        std::cout << this->column * this->row;
+        std::cout << output;
     }
 
     void loop(size_t number_iteration)
     {
         for (size_t i = 0; i < number_iteration; i++)
         {
-            std::system("cls");
-            this->print_table();
-            this->update();
+            // print_table();
+            update();
+
             if (_kbhit())
             {
                 int ch = _getch();
@@ -177,16 +148,16 @@ public:
                     switch (ch)
                     {
                     case 72:
-                        this->change_pos(-1);
+                        this->init_pos.y--;
                         break;
                     case 80:
-                        this->change_pos(1);
+                        this->init_pos.y++;
                         break;
                     case 75:
-                        this->change_pos(-1, false);
+                        this->init_pos.x--;
                         break;
                     case 77:
-                        this->change_pos(1, false);
+                        this->init_pos.x++;
                         break;
                     default:
                         break;
@@ -201,23 +172,16 @@ public:
     }
 };
 
-int main(int argc, char const *argv[])
+int main()
 {
-    Table test(10000, 10000, std::make_pair(29, 49));
-    test.set_value(15, 20);
-    test.set_value(16, 20);
-    test.set_value(17, 20);
-    test.set_value(16, 19);
-    test.set_value(17, 21);
+    Table test;
+    test.set_value(Position(15, 19));
+    test.set_value(Position(15, 20));
+    test.set_value(Position(15, 21));
+    test.set_value(Position(14, 20));
+    test.set_value(Position(16, 21));
 
-    auto start = std::chrono::high_resolution_clock::now();
-
-    test.update();
-
-    auto stop = std::chrono::high_resolution_clock::now();
-
-    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
-    std::cout << duration.count();
+    test.loop(1000);
 
     return 0;
 }

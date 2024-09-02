@@ -55,7 +55,11 @@
         "ratio": "cpp",
         "iomanip": "cpp",
         "sstream": "cpp",
-        "codecvt": "cpp"
+        "codecvt": "cpp",
+        "unordered_set": "cpp",
+        "semaphore": "cpp",
+        "stop_token": "cpp",
+        "thread": "cpp"
     },
     "cSpell.words": [
         "kbhit"
